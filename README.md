@@ -35,7 +35,7 @@ Dies wird zuerst das Bild mit dem Typ `resize_small` verkleinern, dann mit `wate
 ### Responsive Bilder mit Art Direction
 
 ```
-mobile_crop,resize_small
+focus_16_by_9,resize_small
 ```
 
 Dieser Effekt kann genutzt werden, um zuerst einen bestimmten Ausschnitt für mobile Geräte zu wählen und dann das Bild zu verkleinern.
@@ -43,7 +43,7 @@ Dieser Effekt kann genutzt werden, um zuerst einen bestimmten Ausschnitt für mo
 ### Hochqualitative Bildbearbeitung
 
 ```
-image_optimize,resize_large,enhance_quality,watermark
+image_optimize,resize_large,enhance_quality,watermark,media_srcset
 ```
 
 Optimiere das Bild, passe die Größe an, verbessere die Qualität und füge ein Wasserzeichen hinzu - alles in einem Durchgang.
