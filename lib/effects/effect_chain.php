@@ -36,9 +36,12 @@ class rex_effect_chain extends rex_effect_abstract
                     $tempPath = rex_path::addonCache('media_manager', 'chain_' . uniqid() . '.' . $media->getFormat());
                     
                     // Prüfen, ob bereits ein Bild-Objekt verarbeitet wird
+                    $hasImage = false;
+                    
                     try {
                         // Versuche das Bild als Bild zu verarbeiten
                         $media->asImage();
+                        $hasImage = true;
                         
                         // Speichere aktuellen Zustand als Datei
                         $imageData = $media->getImage();
@@ -59,7 +62,11 @@ class rex_effect_chain extends rex_effect_abstract
                             imagepng($imageData, $tempPath, 0);
                         }
                     } catch (Exception $e) {
-                        // Bei Fehler oder wenn keine Bildverarbeitung möglich ist, Original kopieren
+                        $hasImage = false;
+                    }
+                    
+                    // Wenn kein Bild-Objekt vorhanden, original kopieren
+                    if (!$hasImage) {
                         if ($originalPath && file_exists($originalPath)) {
                             copy($originalPath, $tempPath);
                         } else {
@@ -75,29 +82,48 @@ class rex_effect_chain extends rex_effect_abstract
                 // Speichere das Ergebnis als neue Zwischendatei
                 $tempPathNew = rex_path::addonCache('media_manager', 'chain_' . uniqid() . '.' . $chainedMedia->getMedia()->getFormat());
                 
+                $hasImage = false;
+                
                 try {
                     // Versuche das Ergebnis als Bild zu verarbeiten
                     $chainedMedia->getMedia()->asImage();
+                    $hasImage = true;
                     $imageData = $chainedMedia->getMedia()->getImage();
                     $format = $chainedMedia->getMedia()->getFormat();
+                    
+                    if ($format == 'jpg' || $format == 'jpeg') {
+                        imagejpeg($imageData, $tempPathNew, 100);
+                    } elseif ($format == 'png') {
+                        imagepng($imageData, $tempPathNew, 0);
+                    } elseif ($format == 'gif') {
+                        imagegif($imageData, $tempPathNew);
+                    } elseif ($format == 'webp' && function_exists('imagewebp')) {
+                        imagewebp($imageData, $tempPathNew, 100);
+                    } elseif ($format == 'avif' && function_exists('imageavif')) {
+                        imageavif($imageData, $tempPathNew, 100);
+                    } else {
+                        // Fallback
+                        imagepng($imageData, $tempPathNew, 0);
+                    }
+                } catch (Exception $e) {
+                    $hasImage = false;
+                }
                 
-                if ($format == 'jpg' || $format == 'jpeg') {
-                    imagejpeg($imageData, $tempPathNew, 100);
-                } elseif ($format == 'png') {
-                    imagepng($imageData, $tempPathNew, 0);
-                } elseif ($format == 'gif') {
-                    imagegif($imageData, $tempPathNew);
-                } elseif ($format == 'webp' && function_exists('imagewebp')) {
-                    imagewebp($imageData, $tempPathNew, 100);
-                } elseif ($format == 'avif' && function_exists('imageavif')) {
-                    imageavif($imageData, $tempPathNew, 100);
-                } else {
-                    // Fallback
-                    imagepng($imageData, $tempPathNew, 0);
+                // Wenn kein Bild, versuchen die Datei direkt zu kopieren
+                if (!$hasImage) {
+                    $sourcePath = $chainedMedia->getMedia()->getSourcePath();
+                    if ($sourcePath && file_exists($sourcePath)) {
+                        copy($sourcePath, $tempPathNew);
+                    } else {
+                        // Wenn auch das nicht klappt, behalte die vorherige Datei bei
+                        $tempPathNew = $tempPath;
+                        $tempPath = null; // Nicht löschen
+                        continue;
+                    }
                 }
                 
                 // Alte temporäre Datei löschen
-                if (file_exists($tempPath)) {
+                if ($tempPath && file_exists($tempPath)) {
                     unlink($tempPath);
                 }
                 
@@ -105,38 +131,34 @@ class rex_effect_chain extends rex_effect_abstract
             }
             
             // Abschließend das Ergebnis in das aktuelle Media-Objekt laden
-            if ($tempPath !== null && file_exists($tempPath)) {
+            if ($tempPath && file_exists($tempPath)) {
                 // Format bestimmen
                 $format = pathinfo($tempPath, PATHINFO_EXTENSION);
                 
-                // Bild laden
-                $finalImage = null;
-                if ($format == 'jpg' || $format == 'jpeg') {
-                    $finalImage = imagecreatefromjpeg($tempPath);
-                } elseif ($format == 'png') {
-                    $finalImage = imagecreatefrompng($tempPath);
-                    imagealphablending($finalImage, false);
-                    imagesavealpha($finalImage, true);
-                } elseif ($format == 'gif') {
-                    $finalImage = imagecreatefromgif($tempPath);
-                } elseif ($format == 'webp' && function_exists('imagecreatefromwebp')) {
-                    $finalImage = imagecreatefromwebp($tempPath);
-                } elseif ($format == 'avif' && function_exists('imagecreatefromavif')) {
-                    $finalImage = imagecreatefromavif($tempPath);
-                }
+                // Setze den Quellpfad auf die temporäre Datei
+                $media->setSourcePath($tempPath);
                 
-                if ($finalImage) {
-                    $media->setImage($finalImage);
+                try {
+                    // Verarbeite als Bild
+                    $media->asImage();
+                    
+                    // Setze das Format
                     $media->setFormat($format);
+                    
+                    // Dimensionen aktualisieren
                     $media->refreshImageDimensions();
+                } catch (Exception $e) {
+                    // Falls die Bildverarbeitung fehlschlägt, behalten wir die temporäre Datei
+                    // und setzen sie als Quelle, ohne Bildverarbeitung
+                    $media->setFormat($format);
                 }
                 
-                // Temporäre Datei löschen
-                unlink($tempPath);
+                // Lösche die temporäre Datei nicht, damit sie vom Media Manager 
+                // zur Ausgabe verwendet werden kann
             }
         } catch (Exception $e) {
             // Bei Fehler temporäre Dateien aufräumen
-            if ($tempPath !== null && file_exists($tempPath)) {
+            if ($tempPath && file_exists($tempPath)) {
                 unlink($tempPath);
             }
             
