@@ -4,7 +4,3 @@ media_chain_title = Media Chain
 media_manager_effect_chain = Verketten von Medientypen
 media_manager_effect_chain_types = Media-Manager-Typen
 media_manager_effect_chain_types_notice = Kommagetrennte Liste von Media-Manager-Typen, z.B. "resize_small,header,make_greyscale"
-
-media_chain_error_type_not_found = Media Manager Typ "{0}" existiert nicht und wird übersprungen.
-media_chain_error_type_self_reference = Media Manager Typ "{0}" verweist auf sich selbst und wird übersprungen.
-media_chain_error_processing = Fehler bei der Verarbeitung des Typs "{0}": {1}
