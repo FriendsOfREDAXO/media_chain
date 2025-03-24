@@ -34,20 +34,13 @@ class rex_effect_chain extends rex_effect_abstract
                     continue;
                 }
                 
-                // Debug-Ausgabe für die Entwicklung
-                // file_put_contents(rex_path::addonCache('media_chain', 'debug.log'), 'Applying type: ' . $typeName . PHP_EOL, FILE_APPEND);
-                
                 // Temporäre Datei für Zwischenschritte
                 if ($tempPath === null) {
                     $tempPath = rex_path::addonCache('media_manager', 'chain_' . uniqid() . '.' . $media->getFormat());
                     
-                    // Prüfen, ob bereits ein Bild-Objekt verarbeitet wird
-                    $hasImage = false;
-                    
                     try {
                         // Versuche das Bild als Bild zu verarbeiten
                         $media->asImage();
-                        $hasImage = true;
                         
                         // Speichere aktuellen Zustand als Datei
                         $imageData = $media->getImage();
@@ -68,11 +61,7 @@ class rex_effect_chain extends rex_effect_abstract
                             imagepng($imageData, $tempPath, 0);
                         }
                     } catch (Exception $e) {
-                        $hasImage = false;
-                    }
-                    
-                    // Wenn kein Bild-Objekt vorhanden, original kopieren
-                    if (!$hasImage) {
+                        // Bei Fehler oder wenn keine Bildverarbeitung möglich ist, Original kopieren
                         if ($originalPath && file_exists($originalPath)) {
                             copy($originalPath, $tempPath);
                         } else {
@@ -82,25 +71,20 @@ class rex_effect_chain extends rex_effect_abstract
                     }
                 }
                 
-                // Wende den Typ auf die Zwischendatei an
                 // Kopiere die temporäre Datei in den media/-Ordner, damit sie gefunden wird
                 $tmpMediaName = 'chain_' . uniqid() . '.' . pathinfo($tempPath, PATHINFO_EXTENSION);
                 $mediaPath = rex_path::media($tmpMediaName);
                 copy($tempPath, $mediaPath);
                 
-                try {
-                    // Anwenden des Media-Manager-Typs
-                    $chainedMedia = rex_media_manager::create($typeName, $tmpMediaName);
-                    
-                    // Speichere das Ergebnis als neue Zwischendatei
-                    $tempPathNew = rex_path::addonCache('media_manager', 'chain_' . uniqid() . '.' . $chainedMedia->getMedia()->getFormat());
+                // Anwenden des Media-Manager-Typs
+                $chainedMedia = rex_media_manager::create($typeName, $tmpMediaName);
                 
-                $hasImage = false;
+                // Speichere das Ergebnis als neue Zwischendatei
+                $tempPathNew = rex_path::addonCache('media_manager', 'chain_' . uniqid() . '.' . $chainedMedia->getMedia()->getFormat());
                 
+                // Versuche das Ergebnis als Bild zu verarbeiten
                 try {
-                    // Versuche das Ergebnis als Bild zu verarbeiten
                     $chainedMedia->getMedia()->asImage();
-                    $hasImage = true;
                     $imageData = $chainedMedia->getMedia()->getImage();
                     $format = $chainedMedia->getMedia()->getFormat();
                     
@@ -119,16 +103,7 @@ class rex_effect_chain extends rex_effect_abstract
                         imagepng($imageData, $tempPathNew, 0);
                     }
                 } catch (Exception $e) {
-                    $hasImage = false;
-                }
-                
-                // Löschen der temporären Mediendatei
-                if (file_exists($mediaPath)) {
-                    unlink($mediaPath);
-                }
-                
-                // Wenn kein Bild, versuchen die Datei direkt zu kopieren
-                if (!$hasImage) {
+                    // Bei Fehler versuchen, die Datei direkt zu kopieren
                     $sourcePath = $chainedMedia->getMedia()->getSourcePath();
                     if ($sourcePath && file_exists($sourcePath)) {
                         copy($sourcePath, $tempPathNew);
@@ -136,8 +111,12 @@ class rex_effect_chain extends rex_effect_abstract
                         // Wenn auch das nicht klappt, behalte die vorherige Datei bei
                         $tempPathNew = $tempPath;
                         $tempPath = null; // Nicht löschen
-                        continue;
                     }
+                }
+                
+                // Löschen der temporären Mediendatei
+                if (file_exists($mediaPath)) {
+                    unlink($mediaPath);
                 }
                 
                 // Alte temporäre Datei löschen
@@ -185,9 +164,6 @@ class rex_effect_chain extends rex_effect_abstract
                     // und setzen sie als Quelle, ohne Bildverarbeitung
                     $media->setSourcePath($tempPath);
                     $media->setFormat($format);
-                    
-                    // Löschen wir die temporäre Datei nicht, damit sie 
-                    // für die Ausgabe verwendet werden kann
                 }
             }
         } catch (Exception $e) {
