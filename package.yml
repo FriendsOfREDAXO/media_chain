@@ -1,8 +1,16 @@
-package: addon_key
-version: '0.0.0'
-author: 'Friends Of REDAXO'
-supportpage: https://github.com/FriendsOfREDAXO/addon_key
+package: media_chain
+version: '1.0.0'
+author: REDAXO-Team
+supportpage: https://github.com/FriendsOfREDAXO/media_chain
+
 requires:
-    redaxo: '^5.15.1'
+    redaxo: '^5.18.0'
+    packages:
+        media_manager: '^2.11.0'
     php:
-        version: '>=8.1, <9'
+        version: '>=8.1'
+
+page:
+    title: 'Media Chain'
+    perm: admin
+    subpage: README.md
