@@ -9,8 +9,3 @@ requires:
         media_manager: '^2.11.0'
     php:
         version: '>=8.1'
-
-page:
-    title: 'Media Chain'
-    perm: admin
-    subpage: README.md
