@@ -36,17 +36,13 @@ class rex_effect_chain extends rex_effect_abstract
                 $sql->setQuery('SELECT id FROM ' . rex::getTablePrefix() . 'media_manager_type WHERE name = ?', [$typeName]);
                 
                 if ($sql->getRows() === 0) {
-                    $errorMsg = rex_i18n::msg('media_chain_error_type_not_found', $typeName);
-                    // In die REDAXO-Systemlogs schreiben
-                    rex_logger::factory()->log('error', 'Media Chain: ' . $errorMsg);
+                    // Typ nicht gefunden, überspringen
                     continue;
                 }
                 
                 // Verhindere Endlos-Loops
                 if ($typeName == $currentType) {
-                    $errorMsg = rex_i18n::msg('media_chain_error_type_self_reference', $typeName);
-                    // In die REDAXO-Systemlogs schreiben
-                    rex_logger::factory()->log('warning', 'Media Chain: ' . $errorMsg);
+                    // Selbstreferenz, überspringen
                     continue;
                 }
                 
@@ -131,9 +127,6 @@ class rex_effect_chain extends rex_effect_abstract
                     $tempPath = $tempPathNew;
                     
                 } catch (rex_media_manager_not_found_exception $e) {
-                    $errorMsg = rex_i18n::msg('media_chain_error_processing', $typeName, $e->getMessage());
-                    // In die REDAXO-Systemlogs schreiben
-                    rex_logger::factory()->log('error', 'Media Chain: ' . $errorMsg);
                     continue; // Mit dem nächsten Typ fortfahren
                 }
             }
@@ -167,11 +160,7 @@ class rex_effect_chain extends rex_effect_abstract
             }
             
         } catch (Exception $e) {
-            $errorMsg = rex_i18n::msg('media_chain_error_processing', 'general', $e->getMessage());
-            // In die REDAXO-Systemlogs schreiben
-            rex_logger::factory()->log('error', 'Media Chain: ' . $errorMsg);
-            // Exception in die Error-Logs schreiben
-            rex_logger::logException($e);
+            // Fehler stillschweigend behandeln
         } finally {
             // Alle temporären Dateien aufräumen
             foreach ($tempFiles as $file) {
