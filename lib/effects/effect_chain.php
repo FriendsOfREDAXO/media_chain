@@ -35,11 +35,14 @@ class rex_effect_chain extends rex_effect_abstract
                 if ($tempPath === null) {
                     $tempPath = rex_path::addonCache('media_manager', 'chain_' . uniqid() . '.' . $media->getFormat());
                     
-                    // Speichere aktuellen Zustand als Datei
-                    $imageData = $media->getImage();
-                    if ($imageData) {
+                    // Prüfen, ob bereits ein Bild-Objekt verarbeitet wird
+                    try {
+                        // Versuche das Bild als Bild zu verarbeiten
+                        $media->asImage();
+                        
+                        // Speichere aktuellen Zustand als Datei
+                        $imageData = $media->getImage();
                         $format = $media->getFormat();
-                        $tempImage = null;
                         
                         if ($format == 'jpg' || $format == 'jpeg') {
                             imagejpeg($imageData, $tempPath, 100);
@@ -55,9 +58,14 @@ class rex_effect_chain extends rex_effect_abstract
                             // Fallback
                             imagepng($imageData, $tempPath, 0);
                         }
-                    } else {
-                        // Wenn kein Bild-Objekt vorhanden, original kopieren
-                        copy($originalPath, $tempPath);
+                    } catch (Exception $e) {
+                        // Bei Fehler oder wenn keine Bildverarbeitung möglich ist, Original kopieren
+                        if ($originalPath && file_exists($originalPath)) {
+                            copy($originalPath, $tempPath);
+                        } else {
+                            // Wenn auch das nicht klappt, können wir nichts tun
+                            return;
+                        }
                     }
                 }
                 
@@ -67,8 +75,11 @@ class rex_effect_chain extends rex_effect_abstract
                 // Speichere das Ergebnis als neue Zwischendatei
                 $tempPathNew = rex_path::addonCache('media_manager', 'chain_' . uniqid() . '.' . $chainedMedia->getMedia()->getFormat());
                 
-                $imageData = $chainedMedia->getMedia()->getImage();
-                $format = $chainedMedia->getMedia()->getFormat();
+                try {
+                    // Versuche das Ergebnis als Bild zu verarbeiten
+                    $chainedMedia->getMedia()->asImage();
+                    $imageData = $chainedMedia->getMedia()->getImage();
+                    $format = $chainedMedia->getMedia()->getFormat();
                 
                 if ($format == 'jpg' || $format == 'jpeg') {
                     imagejpeg($imageData, $tempPathNew, 100);
