@@ -1,6 +1,6 @@
-package: media_chain
+package: mmedia_chain
 version: '1.0.0'
-author: REDAXO-Team
+author: 'Friends Of REDAXO'
 supportpage: https://github.com/FriendsOfREDAXO/media_chain
 
 requires:
