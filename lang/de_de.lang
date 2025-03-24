@@ -1,0 +1,6 @@
+media_chain = Media Chain
+media_chain_title = Media Chain
+
+media_manager_effect_chain = Verketten von Medientypen
+media_manager_effect_chain_types = Media-Manager-Typen
+media_manager_effect_chain_types_notice = Kommagetrennte Liste von Media-Manager-Typen, z.B. "resize_small,header,make_greyscale"
