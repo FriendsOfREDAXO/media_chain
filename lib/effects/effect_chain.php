@@ -144,7 +144,7 @@ class rex_effect_chain extends rex_effect_abstract
             [
                 'label' => rex_i18n::msg('media_manager_effect_chain_types'),
                 'name' => 'types',
-                'type' => 'text',
+                'type' => 'string',
                 'notice' => rex_i18n::msg('media_manager_effect_chain_types_notice')
             ]
         ];
