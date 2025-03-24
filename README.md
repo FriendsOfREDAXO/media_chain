@@ -95,6 +95,17 @@ Falls Probleme auftreten:
 
 MIT License
 
-## Autor
+## Author
 
-REDAXO-Team
+**Friends Of REDAXO**
+
+* http://www.redaxo.org
+* https://github.com/FriendsOfREDAXO
+
+
+## Credits
+
+**Project Lead**
+
+[Thomas Skerbis](https://github.com/skerbis)  
+
