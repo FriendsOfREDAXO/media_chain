@@ -37,24 +37,16 @@ class rex_effect_chain extends rex_effect_abstract
                 
                 if ($sql->getRows() === 0) {
                     $errorMsg = rex_i18n::msg('media_chain_error_type_not_found', $typeName);
-                    rex_logger::logError(
-                        E_WARNING,
-                        $errorMsg,
-                        __FILE__,
-                        __LINE__
-                    );
+                    // Im System-Log protokollieren
+                    rex_logger::factory()->log('media_chain', $errorMsg);
                     continue;
                 }
                 
                 // Verhindere Endlos-Loops
                 if ($typeName == $currentType) {
                     $errorMsg = rex_i18n::msg('media_chain_error_type_self_reference', $typeName);
-                    rex_logger::logError(
-                        E_NOTICE,
-                        $errorMsg,
-                        __FILE__,
-                        __LINE__
-                    );
+                    // Im System-Log protokollieren
+                    rex_logger::factory()->log('media_chain', $errorMsg);
                     continue;
                 }
                 
@@ -140,13 +132,8 @@ class rex_effect_chain extends rex_effect_abstract
                     
                 } catch (rex_media_manager_not_found_exception $e) {
                     $errorMsg = rex_i18n::msg('media_chain_error_processing', $typeName, $e->getMessage());
-                    rex_logger::logError(
-                        E_WARNING,
-                        $errorMsg,
-                        __FILE__,
-                        __LINE__
-                    );
-                    rex_logger::logException($e);
+                    // Im System-Log protokollieren
+                    rex_logger::factory()->log('media_chain', $errorMsg);
                     continue; // Mit dem nächsten Typ fortfahren
                 }
             }
@@ -181,12 +168,9 @@ class rex_effect_chain extends rex_effect_abstract
             
         } catch (Exception $e) {
             $errorMsg = rex_i18n::msg('media_chain_error_processing', 'general', $e->getMessage());
-            rex_logger::logError(
-                E_WARNING,
-                $errorMsg,
-                __FILE__,
-                __LINE__
-            );
+            // Im System-Log protokollieren
+            rex_logger::factory()->log('media_chain', $errorMsg);
+            // Exception wird ebenfalls ins System-Log geschrieben
             rex_logger::logException($e);
         } finally {
             // Alle temporären Dateien aufräumen
