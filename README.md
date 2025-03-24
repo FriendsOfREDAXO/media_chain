@@ -43,7 +43,7 @@ Dieser Effekt kann genutzt werden, um zuerst einen bestimmten Ausschnitt für mo
 ### Hochqualitative Bildbearbeitung
 
 ```
-image_optimize,resize_large,enhance_quality,watermark,media_srcset
+image_optimize,resize_large,enhance_quality,watermark,srcset_large
 ```
 
 Optimiere das Bild, passe die Größe an, verbessere die Qualität und füge ein Wasserzeichen hinzu - alles in einem Durchgang.
