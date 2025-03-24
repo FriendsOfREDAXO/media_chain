@@ -18,32 +18,60 @@ class rex_effect_chain extends rex_effect_abstract
             return;
         }
         
-        // Aktueller Medientyp zur Vermeidung von Endlosschleifen
-        $currentType = rex_get('rex_media_type', 'string', '');
-        
         $media = $this->media;
         $originalPath = $media->getMediaPath();
         $tempPath = null;
+        $tempFiles = []; // Für das Tracking aller temporären Dateien zum späteren Aufräumen
         
         try {
+            // Aktuellen Typ für Loop-Vermeidung identifizieren
+            // Wir verwenden die URL-Parameter, wenn keine andere Methode verfügbar ist
+            $currentType = rex_get('rex_media_type', 'string', '');
+            
             foreach ($chainTypes as $typeName) {
                 $typeName = trim($typeName);
                 
+                // Überprüfe ob der Typ existiert
+                $sql = rex_sql::factory();
+                $sql->setQuery('SELECT id FROM ' . rex::getTablePrefix() . 'media_manager_type WHERE name = ?', [$typeName]);
+                
+                if ($sql->getRows() === 0) {
+                    $errorMsg = rex_i18n::msg('media_chain_error_type_not_found', $typeName);
+                    rex_logger::logError(
+                        E_WARNING,
+                        $errorMsg,
+                        __FILE__,
+                        __LINE__
+                    );
+                    continue;
+                }
+                
                 // Verhindere Endlos-Loops
                 if ($typeName == $currentType) {
+                    $errorMsg = rex_i18n::msg('media_chain_error_type_self_reference', $typeName);
+                    rex_logger::logError(
+                        E_NOTICE,
+                        $errorMsg,
+                        __FILE__,
+                        __LINE__
+                    );
                     continue;
                 }
                 
                 // Temporäre Datei für Zwischenschritte
                 if ($tempPath === null) {
-                    $tempPath = rex_path::addonCache('media_manager', 'chain_' . uniqid() . '.' . $media->getFormat());
+                    // Erstelle temporäres Verzeichnis falls noch nicht vorhanden
+                    $tempDir = rex_path::addonCache('media_chain', 'temp');
+                    if (!is_dir($tempDir)) {
+                        rex_dir::create($tempDir);
+                    }
                     
-                    try {
-                        // Versuche das Bild als Bild zu verarbeiten
-                        $media->asImage();
-                        
-                        // Speichere aktuellen Zustand als Datei
-                        $imageData = $media->getImage();
+                    $tempPath = $tempDir . '/' . uniqid('chain_') . '.' . $media->getFormat();
+                    $tempFiles[] = $tempPath; // Zur Cleanup-Liste hinzufügen
+                    
+                    // Speichere aktuellen Zustand als Datei
+                    $imageData = $media->getImage();
+                    if ($imageData) {
                         $format = $media->getFormat();
                         
                         if ($format == 'jpg' || $format == 'jpeg') {
@@ -60,31 +88,26 @@ class rex_effect_chain extends rex_effect_abstract
                             // Fallback
                             imagepng($imageData, $tempPath, 0);
                         }
-                    } catch (Exception $e) {
-                        // Bei Fehler oder wenn keine Bildverarbeitung möglich ist, Original kopieren
-                        if ($originalPath && file_exists($originalPath)) {
-                            copy($originalPath, $tempPath);
-                        } else {
-                            // Wenn auch das nicht klappt, können wir nichts tun
-                            return;
-                        }
+                    } else {
+                        // Wenn kein Bild-Objekt vorhanden, original kopieren
+                        copy($originalPath, $tempPath);
                     }
                 }
                 
-                // Kopiere die temporäre Datei in den media/-Ordner, damit sie gefunden wird
-                $tmpMediaName = 'chain_' . uniqid() . '.' . pathinfo($tempPath, PATHINFO_EXTENSION);
-                $mediaPath = rex_path::media($tmpMediaName);
-                copy($tempPath, $mediaPath);
+                // Kopiere die temporäre Datei in den Media-Ordner, damit der Media Manager sie findet
+                $tempFileName = basename($tempPath);
+                $mediaFile = rex_path::media($tempFileName);
+                copy($tempPath, $mediaFile);
+                $tempFiles[] = $mediaFile; // Zur Cleanup-Liste hinzufügen
                 
-                // Anwenden des Media-Manager-Typs
-                $chainedMedia = rex_media_manager::create($typeName, $tmpMediaName);
-                
-                // Speichere das Ergebnis als neue Zwischendatei
-                $tempPathNew = rex_path::addonCache('media_manager', 'chain_' . uniqid() . '.' . $chainedMedia->getMedia()->getFormat());
-                
-                // Versuche das Ergebnis als Bild zu verarbeiten
+                // Wende den Typ auf die Datei an
                 try {
-                    $chainedMedia->getMedia()->asImage();
+                    $chainedMedia = rex_media_manager::create($typeName, $tempFileName);
+                    
+                    // Speichere das Ergebnis als neue Zwischendatei
+                    $tempPathNew = $tempDir . '/' . uniqid('chain_') . '.' . $chainedMedia->getMedia()->getFormat();
+                    $tempFiles[] = $tempPathNew; // Zur Cleanup-Liste hinzufügen
+                    
                     $imageData = $chainedMedia->getMedia()->getImage();
                     $format = $chainedMedia->getMedia()->getFormat();
                     
@@ -102,77 +125,76 @@ class rex_effect_chain extends rex_effect_abstract
                         // Fallback
                         imagepng($imageData, $tempPathNew, 0);
                     }
-                } catch (Exception $e) {
-                    // Bei Fehler versuchen, die Datei direkt zu kopieren
-                    $sourcePath = $chainedMedia->getMedia()->getSourcePath();
-                    if ($sourcePath && file_exists($sourcePath)) {
-                        copy($sourcePath, $tempPathNew);
-                    } else {
-                        // Wenn auch das nicht klappt, behalte die vorherige Datei bei
-                        $tempPathNew = $tempPath;
-                        $tempPath = null; // Nicht löschen
+                    
+                    // Alte temporäre Datei löschen
+                    if (file_exists($tempPath)) {
+                        unlink($tempPath);
+                        // Aus der Liste der aufzuräumenden Dateien entfernen
+                        $index = array_search($tempPath, $tempFiles);
+                        if ($index !== false) {
+                            unset($tempFiles[$index]);
+                        }
                     }
+                    
+                    $tempPath = $tempPathNew;
+                    
+                } catch (rex_media_manager_not_found_exception $e) {
+                    $errorMsg = rex_i18n::msg('media_chain_error_processing', $typeName, $e->getMessage());
+                    rex_logger::logError(
+                        E_WARNING,
+                        $errorMsg,
+                        __FILE__,
+                        __LINE__
+                    );
+                    rex_logger::logException($e);
+                    continue; // Mit dem nächsten Typ fortfahren
                 }
-                
-                // Löschen der temporären Mediendatei
-                if (file_exists($mediaPath)) {
-                    unlink($mediaPath);
-                }
-                
-                // Alte temporäre Datei löschen
-                if ($tempPath && file_exists($tempPath)) {
-                    unlink($tempPath);
-                }
-                
-                $tempPath = $tempPathNew;
             }
             
             // Abschließend das Ergebnis in das aktuelle Media-Objekt laden
-            if ($tempPath && file_exists($tempPath)) {
+            if ($tempPath !== null && file_exists($tempPath)) {
                 // Format bestimmen
                 $format = pathinfo($tempPath, PATHINFO_EXTENSION);
                 
-                try {
-                    // Bild laden
-                    if ($format == 'jpg' || $format == 'jpeg') {
-                        $finalImage = imagecreatefromjpeg($tempPath);
-                    } elseif ($format == 'png') {
-                        $finalImage = imagecreatefrompng($tempPath);
-                        imagealphablending($finalImage, false);
-                        imagesavealpha($finalImage, true);
-                    } elseif ($format == 'gif') {
-                        $finalImage = imagecreatefromgif($tempPath);
-                    } elseif ($format == 'webp' && function_exists('imagecreatefromwebp')) {
-                        $finalImage = imagecreatefromwebp($tempPath);
-                    } elseif ($format == 'avif' && function_exists('imagecreatefromavif')) {
-                        $finalImage = imagecreatefromavif($tempPath);
-                    } else {
-                        throw new Exception('Unsupported image format');
-                    }
-                    
-                    // Setze das Bild direkt
+                // Bild laden
+                $finalImage = null;
+                if ($format == 'jpg' || $format == 'jpeg') {
+                    $finalImage = imagecreatefromjpeg($tempPath);
+                } elseif ($format == 'png') {
+                    $finalImage = imagecreatefrompng($tempPath);
+                    imagealphablending($finalImage, false);
+                    imagesavealpha($finalImage, true);
+                } elseif ($format == 'gif') {
+                    $finalImage = imagecreatefromgif($tempPath);
+                } elseif ($format == 'webp' && function_exists('imagecreatefromwebp')) {
+                    $finalImage = imagecreatefromwebp($tempPath);
+                } elseif ($format == 'avif' && function_exists('imagecreatefromavif')) {
+                    $finalImage = imagecreatefromavif($tempPath);
+                }
+                
+                if ($finalImage) {
                     $media->setImage($finalImage);
                     $media->setFormat($format);
                     $media->refreshImageDimensions();
-                    
-                    // Temporäre Datei löschen, da wir das Bild direkt im Speicher haben
-                    if (file_exists($tempPath)) {
-                        unlink($tempPath);
-                    }
-                } catch (Exception $e) {
-                    // Falls die Bildverarbeitung fehlschlägt, behalten wir die temporäre Datei
-                    // und setzen sie als Quelle, ohne Bildverarbeitung
-                    $media->setSourcePath($tempPath);
-                    $media->setFormat($format);
                 }
             }
-        } catch (Exception $e) {
-            // Bei Fehler temporäre Dateien aufräumen
-            if ($tempPath && file_exists($tempPath)) {
-                unlink($tempPath);
-            }
             
-            throw $e;
+        } catch (Exception $e) {
+            $errorMsg = rex_i18n::msg('media_chain_error_processing', 'general', $e->getMessage());
+            rex_logger::logError(
+                E_WARNING,
+                $errorMsg,
+                __FILE__,
+                __LINE__
+            );
+            rex_logger::logException($e);
+        } finally {
+            // Alle temporären Dateien aufräumen
+            foreach ($tempFiles as $file) {
+                if (file_exists($file)) {
+                    unlink($file);
+                }
+            }
         }
     }
     
@@ -187,7 +209,7 @@ class rex_effect_chain extends rex_effect_abstract
             [
                 'label' => rex_i18n::msg('media_manager_effect_chain_types'),
                 'name' => 'types',
-                'type' => 'string',
+                'type' => 'text',
                 'notice' => rex_i18n::msg('media_manager_effect_chain_types_notice')
             ]
         ];
